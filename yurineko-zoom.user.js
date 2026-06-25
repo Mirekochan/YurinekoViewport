@@ -1,41 +1,45 @@
 // ==UserScript==
 // @name         Yurineko PC Viewport
+// @name:vi      Tối ưu Viewport Yurineko PC
 // @namespace    http://tampermonkey.net/
 // @version      1.0
-// @description  Tối ưu hóa trải nghiệm đọc truyện trên Yurineko: Thanh công cụ phóng to/thu nhỏ mượt mà, tự động lưu tỷ lệ zoom ảnh, giao diện tinh tế và tiện lợi cho PC.
+// @description  Optimized manga reader for Yurineko. Smooth zoom, zero-lag, rAF sync, and pure bare-metal performance.
+// @description:vi Kéo dãn khung đọc truyện cho Yurineko. Mượt mà, không giật lag, chỉ tập trung 1 tính năng duy nhất.
 // @author       Mireko
 // @match        *://*.yurinekoz.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=yurinekoz.com
 // @grant        none
+// @license      MIT
 // ==/UserScript==
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    const CONFIG = {
-        STORAGE_KEY: 'yurineko_canvas_zoom',
-        UI_STATE_KEY: 'yurineko_ui_expanded',
-        WRAPPER_ID: 'yurineko-zoom-wrapper',
-        STYLE_ID: 'yurineko-zoom-style',
-        READER_SELECTOR: 'div[aria-label^="Page"]',
-        ZOOM: { DEFAULT: 80, MAX: 200, MIN: 30 }
-    };
+  const CONFIG = {
+    STORAGE_KEY: "yurineko_canvas_zoom",
+    UI_STATE_KEY: "yurineko_ui_expanded",
+    WRAPPER_ID: "yurineko-zoom-wrapper",
+    STYLE_ID: "yurineko-zoom-style",
+    READER_SELECTOR: 'div[aria-label^="Page"]',
+    ZOOM: { DEFAULT: 80, MAX: 200, MIN: 30 },
+  };
 
-    const getInitialZoom = () => {
-        const stored = parseInt(localStorage.getItem(CONFIG.STORAGE_KEY), 10);
-        if (Number.isNaN(stored)) return CONFIG.ZOOM.DEFAULT;
-        return Math.min(Math.max(stored, CONFIG.ZOOM.MIN), CONFIG.ZOOM.MAX);
-    };
+  const getInitialZoom = () => {
+    const stored = parseInt(localStorage.getItem(CONFIG.STORAGE_KEY), 10);
+    if (Number.isNaN(stored)) return CONFIG.ZOOM.DEFAULT;
+    return Math.min(Math.max(stored, CONFIG.ZOOM.MIN), CONFIG.ZOOM.MAX);
+  };
 
-    let currentZoom = getInitialZoom();
-    let isExpanded = localStorage.getItem(CONFIG.UI_STATE_KEY) !== 'false';
-    let isUIInjected = false;
+  let currentZoom = getInitialZoom();
+  let isExpanded = localStorage.getItem(CONFIG.UI_STATE_KEY) !== "false";
+  let isUIInjected = false;
 
-    const injectBaseCSS = () => {
-        if (document.getElementById(CONFIG.STYLE_ID)) return;
+  const injectBaseCSS = () => {
+    if (document.getElementById(CONFIG.STYLE_ID)) return;
 
-        const styleEl = document.createElement('style');
-        styleEl.id = CONFIG.STYLE_ID;
-        styleEl.innerHTML = `
+    const styleEl = document.createElement("style");
+    styleEl.id = CONFIG.STYLE_ID;
+    styleEl.innerHTML = `
             :root {
                 --yuri-zoom: ${currentZoom}%;
                 --panel-bg: #ffffff; --text-color: #1f2937; --btn-bg: #ffffff; --icon-color: #EE5A8A;
@@ -84,28 +88,29 @@
             .yuri-btn-toggle svg { stroke: var(--icon-color); transition: transform 0.3s ease, stroke 0.3s ease; }
             .yuri-btn-toggle.closed svg { transform: rotate(180deg); }
         `;
-        document.head.appendChild(styleEl);
-    };
+    document.head.appendChild(styleEl);
+  };
 
-    const toggleUIState = (panel, btn) => {
-        isExpanded = !isExpanded;
-        localStorage.setItem(CONFIG.UI_STATE_KEY, isExpanded.toString());
-        panel.classList.toggle('collapsed', !isExpanded);
-        btn.classList.toggle('closed', !isExpanded);
-    };
+  const toggleUIState = (panel, btn) => {
+    isExpanded = !isExpanded;
+    localStorage.setItem(CONFIG.UI_STATE_KEY, isExpanded.toString());
+    panel.classList.toggle("collapsed", !isExpanded);
+    btn.classList.toggle("closed", !isExpanded);
+  };
 
-    const mountUI = () => {
-        if (window.innerWidth <= 768 || document.getElementById(CONFIG.WRAPPER_ID)) return;
+  const mountUI = () => {
+    if (window.innerWidth <= 768 || document.getElementById(CONFIG.WRAPPER_ID))
+      return;
 
-        const wrapper = document.createElement('div');
-        wrapper.id = CONFIG.WRAPPER_ID;
-        wrapper.innerHTML = `
-            <div class="yuri-btn-toggle ${isExpanded ? '' : 'closed'}" id="yuri-toggle-btn" title="Toggle Zoom Panel">
+    const wrapper = document.createElement("div");
+    wrapper.id = CONFIG.WRAPPER_ID;
+    wrapper.innerHTML = `
+            <div class="yuri-btn-toggle ${isExpanded ? "" : "closed"}" id="yuri-toggle-btn" title="Toggle Zoom Panel">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline>
                 </svg>
             </div>
-            <div class="yuri-panel ${isExpanded ? '' : 'collapsed'}" id="yuri-zoom-panel">
+            <div class="yuri-panel ${isExpanded ? "" : "collapsed"}" id="yuri-zoom-panel">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#yuri-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <defs>
                         <linearGradient id="yuri-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -119,55 +124,58 @@
                 <span id="zoom-value" style="font-family: 'r0c0i Linotte', sans-serif; font-weight: bold; padding-top: 2px; display: inline-block; width: 40px; text-align: center;">${currentZoom}%</span>
             </div>
         `;
-        document.body.appendChild(wrapper);
+    document.body.appendChild(wrapper);
 
-        const slider = document.getElementById('zoom-slider');
-        const valueDisplay = document.getElementById('zoom-value');
-        const toggleBtn = document.getElementById('yuri-toggle-btn');
-        const panel = document.getElementById('yuri-zoom-panel');
+    const slider = document.getElementById("zoom-slider");
+    const valueDisplay = document.getElementById("zoom-value");
+    const toggleBtn = document.getElementById("yuri-toggle-btn");
+    const panel = document.getElementById("yuri-zoom-panel");
 
-        let rAF_ID = null;
+    let rAF_ID = null;
 
-        slider.addEventListener('input', (e) => {
-            const val = e.target.value;
-            valueDisplay.textContent = `${val}%`;
+    slider.addEventListener(
+      "input",
+      (e) => {
+        const val = e.target.value;
+        valueDisplay.textContent = `${val}%`;
 
-            if (rAF_ID) cancelAnimationFrame(rAF_ID);
-            rAF_ID = requestAnimationFrame(() => {
-                currentZoom = val;
-                document.documentElement.style.setProperty('--yuri-zoom', `${val}%`);
-            });
-        }, { passive: true });
-
-        slider.addEventListener('change', (e) => {
-            localStorage.setItem(CONFIG.STORAGE_KEY, e.target.value);
+        if (rAF_ID) cancelAnimationFrame(rAF_ID);
+        rAF_ID = requestAnimationFrame(() => {
+          currentZoom = val;
+          document.documentElement.style.setProperty("--yuri-zoom", `${val}%`);
         });
+      },
+      { passive: true },
+    );
 
-        toggleBtn.addEventListener('click', () => toggleUIState(panel, toggleBtn));
-        isUIInjected = true;
-    };
+    slider.addEventListener("change", (e) => {
+      localStorage.setItem(CONFIG.STORAGE_KEY, e.target.value);
+    });
 
-    const unmountUI = () => {
-        const wrapper = document.getElementById(CONFIG.WRAPPER_ID);
-        if (wrapper) wrapper.remove();
-        isUIInjected = false;
-    };
+    toggleBtn.addEventListener("click", () => toggleUIState(panel, toggleBtn));
+    isUIInjected = true;
+  };
 
-    const initSPAObserver = () => {
-        const observer = new MutationObserver(() => {
-            const hasReader = document.querySelector(CONFIG.READER_SELECTOR) !== null;
+  const unmountUI = () => {
+    const wrapper = document.getElementById(CONFIG.WRAPPER_ID);
+    if (wrapper) wrapper.remove();
+    isUIInjected = false;
+  };
 
-            if (hasReader && !isUIInjected) {
-                injectBaseCSS();
-                mountUI();
-            } else if (!hasReader && isUIInjected) {
-                unmountUI();
-            }
-        });
+  const initSPAObserver = () => {
+    const observer = new MutationObserver(() => {
+      const hasReader = document.querySelector(CONFIG.READER_SELECTOR) !== null;
 
-        observer.observe(document.body, { childList: true, subtree: true });
-    };
+      if (hasReader && !isUIInjected) {
+        injectBaseCSS();
+        mountUI();
+      } else if (!hasReader && isUIInjected) {
+        unmountUI();
+      }
+    });
 
-    initSPAObserver();
+    observer.observe(document.body, { childList: true, subtree: true });
+  };
 
+  initSPAObserver();
 })();
