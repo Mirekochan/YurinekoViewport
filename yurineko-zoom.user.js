@@ -2,7 +2,7 @@
 // @name         Yurineko PC Viewport
 // @name:vi      Tối ưu Viewport Yurineko PC
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Improves PC reading experience for Yurineko. Adds a customizable zoom slider to fit your screen perfectly.
 // @description:vi Tối ưu hóa trải nghiệm đọc truyện trên PC cho Yurineko. Thêm thanh trượt thu phóng, giúp đọc mượt mà và chống mỏi mắt.
 // @author       Mireko
@@ -79,6 +79,7 @@
                 transition: opacity 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
             .yuri-btn-toggle:not(.closed):hover { box-shadow: var(--shadow-hover); }
+            .yuri-btn-toggle:focus-visible { outline: 2px solid var(--icon-color); outline-offset: 2px; }
             .yuri-btn-toggle.closed { transform: translateX(20px); opacity: 0.25; box-shadow: none; }
             .yuri-btn-toggle.closed:hover { opacity: 1; box-shadow: var(--shadow-closed); }
             .yuri-panel {
@@ -102,12 +103,13 @@
     localStorage.setItem(CONFIG.UI_STATE_KEY, isExpanded.toString());
     panel.classList.toggle("collapsed", !isExpanded);
     btn.classList.toggle("closed", !isExpanded);
+    btn.setAttribute("aria-expanded", isExpanded.toString());
   };
 
   const applyZoomToContainer = (val) => {
     if (!readerContainerNode || !readerContainerNode.isConnected) {
       const reader = document.querySelector(CONFIG.READER_SELECTOR);
-      if (reader) readerContainerNode = reader.closest('div.relative.shadow-xl');
+      if (reader) readerContainerNode = reader.closest('div.relative.shadow-xl') || reader.parentElement;
     }
 
     if (readerContainerNode) {
@@ -124,7 +126,7 @@
     const wrapper = document.createElement("div");
     wrapper.id = CONFIG.WRAPPER_ID;
     wrapper.innerHTML = `
-            <div class="yuri-btn-toggle ${isExpanded ? "" : "closed"}" id="yuri-toggle-btn" title="Toggle Zoom Panel">
+            <div class="yuri-btn-toggle ${isExpanded ? "" : "closed"}" id="yuri-toggle-btn" title="Toggle Zoom Panel" aria-label="Toggle Zoom Panel" aria-expanded="${isExpanded}" tabindex="0">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline>
                 </svg>
@@ -138,7 +140,7 @@
                     </defs>
                     <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="range" orient="vertical" id="zoom-slider" min="${CONFIG.ZOOM.MIN}" max="${CONFIG.ZOOM.MAX}" value="${currentZoom}" step="5"
+                <input type="range" orient="vertical" id="zoom-slider" aria-label="Zoom level" min="${CONFIG.ZOOM.MIN}" max="${CONFIG.ZOOM.MAX}" value="${currentZoom}" step="5"
                        style="-webkit-appearance: slider-vertical; width: 8px; height: 140px; cursor: ns-resize; accent-color: #EE5A8A;">
                 <span id="zoom-value" style="font-family: 'r0c0i Linotte', sans-serif; font-weight: bold; padding-top: 2px; display: inline-block; width: 40px; text-align: center;">${currentZoom}%</span>
             </div>
@@ -169,6 +171,12 @@
     });
 
     toggleBtn.addEventListener("click", () => toggleUIState(panel, toggleBtn));
+    toggleBtn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggleUIState(panel, toggleBtn);
+      }
+    });
     isUIInjected = true;
   };
 
