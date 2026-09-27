@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Yurineko PC Viewport
-// @name:vi      Tối ưu Viewport Yurineko PC
+// @name:vi      Viewport Yurineko PC (Core V2)
 // @namespace    http://tampermonkey.net/
 // @version      1.1.0
 // @description  Adds a customizable zoom slider to fit your screen perfectly
