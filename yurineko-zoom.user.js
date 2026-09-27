@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Yurineko PC Viewport
+// @name         Yurineko PC Viewport (Core V2)
 // @name:vi      Viewport Yurineko PC (Core V2)
 // @namespace    http://tampermonkey.net/
 // @version      1.1.0
