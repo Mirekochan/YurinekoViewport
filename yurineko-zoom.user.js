@@ -2,9 +2,9 @@
 // @name         Yurineko PC Viewport
 // @name:vi      Tối ưu Viewport Yurineko PC
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Improves PC reading experience for Yurineko. Adds a customizable zoom slider to fit your screen perfectly.
-// @description:vi Tối ưu hóa trải nghiệm đọc truyện trên PC cho Yurineko. Thêm thanh trượt thu phóng, giúp đọc mượt mà và chống mỏi mắt.
+// @version      1.1.0
+// @description  Adds a customizable zoom slider to fit your screen perfectly
+// @description:vi Thêm thanh trượt thu phóng Yurineko
 // @author       Mireko
 // @match        *://*.yurinekoz.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yurinekoz.com
@@ -40,8 +40,11 @@
 
     const styleEl = document.createElement("style");
     styleEl.id = CONFIG.STYLE_ID;
+
     styleEl.innerHTML = `
             :root {
+                --yuri-zoom-level: ${currentZoom}%;
+                --yuri-margin-left: calc(50% - (${currentZoom} * 0.5%));
                 --panel-bg: #ffffff; --text-color: #1f2937; --btn-bg: #ffffff; --icon-color: #EE5A8A;
                 --shadow-panel: 0 10px 25px rgba(0,0,0,0.15); --shadow-btn: 0 4px 12px rgba(0,0,0,0.15);
                 --shadow-hover: 0 0 15px rgba(238, 90, 138, 0.4); --shadow-closed: -4px 0 12px rgba(0,0,0,0.1);
@@ -56,6 +59,8 @@
                 display: block !important;
                 max-width: none !important;
                 position: relative !important;
+                width: var(--yuri-zoom-level) !important;
+                margin-left: var(--yuri-margin-left) !important;
                 transform: translateZ(0) !important;
                 left: auto !important;
                 margin-top: 0 !important;
@@ -107,15 +112,24 @@
   };
 
   const applyZoomToContainer = (val) => {
+    document.documentElement.style.setProperty("--yuri-zoom-level", `${val}%`);
+    document.documentElement.style.setProperty(
+      "--yuri-margin-left",
+      `calc(50% - (${val} * 0.5%))`,
+    );
+
     if (!readerContainerNode || !readerContainerNode.isConnected) {
       const reader = document.querySelector(CONFIG.READER_SELECTOR);
-      if (reader) readerContainerNode = reader.closest('div.relative.shadow-xl') || reader.parentElement;
+      if (reader)
+        readerContainerNode =
+          reader.closest("div.relative.shadow-xl") || reader.parentElement;
     }
 
-    if (readerContainerNode) {
-      readerContainerNode.classList.add('yuri-optimized-reader');
-      readerContainerNode.style.width = `${val}%`;
-      readerContainerNode.style.marginLeft = `calc(50% - (${val} * 0.5%))`;
+    if (
+      readerContainerNode &&
+      !readerContainerNode.classList.contains("yuri-optimized-reader")
+    ) {
+      readerContainerNode.classList.add("yuri-optimized-reader");
     }
   };
 
@@ -156,14 +170,14 @@
     applyZoomToContainer(currentZoom);
 
     slider.addEventListener("input", (e) => {
-        const val = e.target.value;
-        valueDisplay.textContent = `${val}%`;
+      const val = e.target.value;
+      valueDisplay.textContent = `${val}%`;
 
-        if (rAF_ID) cancelAnimationFrame(rAF_ID);
-        rAF_ID = requestAnimationFrame(() => {
-          currentZoom = val;
-          applyZoomToContainer(val);
-        });
+      if (rAF_ID) cancelAnimationFrame(rAF_ID);
+      rAF_ID = requestAnimationFrame(() => {
+        currentZoom = val;
+        applyZoomToContainer(val);
+      });
     });
 
     slider.addEventListener("change", (e) => {
@@ -193,7 +207,8 @@
       if (moTimer) return;
 
       moTimer = setTimeout(() => {
-        const hasReader = document.querySelector(CONFIG.READER_SELECTOR) !== null;
+        const hasReader =
+          document.querySelector(CONFIG.READER_SELECTOR) !== null;
 
         if (hasReader && !isUIInjected) {
           injectBaseCSS();
@@ -204,7 +219,7 @@
         } else if (hasReader && isUIInjected) {
           applyZoomToContainer(currentZoom);
         }
-        
+
         moTimer = null;
       }, 250);
     });
