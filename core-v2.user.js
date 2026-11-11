@@ -2,7 +2,7 @@
 // @name         Yurineko PC Viewport (Core V2)
 // @name:vi      Viewport Yurineko PC (Core V2)
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.2.0
 // @description  Adds a customizable zoom slider to fit your screen perfectly
 // @description:vi Thêm thanh trượt thu phóng Yurineko
 // @author       Mireko
@@ -12,22 +12,30 @@
 // @license      MIT
 // ==/UserScript==
 
-(function () {
+(() => {
   "use strict";
 
-  const CONFIG = {
+  const CONFIG = Object.freeze({
     STORAGE_KEY: "yurineko_canvas_zoom",
     UI_STATE_KEY: "yurineko_ui_expanded",
     WRAPPER_ID: "yurineko-zoom-wrapper",
     STYLE_ID: "yurineko-zoom-style",
     READER_SELECTOR: 'div[aria-label^="Page"]',
-    ZOOM: { DEFAULT: 80, MAX: 200, MIN: 30 },
-  };
+    READER_PARENT_SELECTOR: "div.relative.shadow-xl",
+    MOBILE_BREAKPOINT_PX: 768,
+    OBSERVER_DEBOUNCE_MS: 250,
+    ZOOM: Object.freeze({
+      DEFAULT: 80,
+      MAX: 200,
+      MIN: 30,
+      STEP: 5,
+    }),
+  });
 
   const getInitialZoom = () => {
-    const stored = parseInt(localStorage.getItem(CONFIG.STORAGE_KEY), 10);
-    if (Number.isNaN(stored)) return CONFIG.ZOOM.DEFAULT;
-    return Math.min(Math.max(stored, CONFIG.ZOOM.MIN), CONFIG.ZOOM.MAX);
+    const storedZoom = Number.parseInt(localStorage.getItem(CONFIG.STORAGE_KEY), 10);
+    if (Number.isNaN(storedZoom)) return CONFIG.ZOOM.DEFAULT;
+    return Math.min(Math.max(storedZoom, CONFIG.ZOOM.MIN), CONFIG.ZOOM.MAX);
   };
 
   let currentZoom = getInitialZoom();
@@ -41,88 +49,179 @@
     const styleEl = document.createElement("style");
     styleEl.id = CONFIG.STYLE_ID;
 
-    styleEl.innerHTML = `
-            :root {
-                --yuri-zoom-level: ${currentZoom}%;
-                --yuri-margin-left: calc(50% - (${currentZoom} * 0.5%));
-                --panel-bg: #ffffff; --text-color: #1f2937; --btn-bg: #ffffff; --icon-color: #EE5A8A;
-                --shadow-panel: 0 10px 25px rgba(0,0,0,0.15); --shadow-btn: 0 4px 12px rgba(0,0,0,0.15);
-                --shadow-hover: 0 0 15px rgba(238, 90, 138, 0.4); --shadow-closed: -4px 0 12px rgba(0,0,0,0.1);
-            }
-            html.dark {
-                --panel-bg: #18181b; --text-color: #ffffff; --btn-bg: #18181b; --icon-color: #F38FAC;
-                --shadow-panel: 0 10px 25px rgba(0,0,0,0.8); --shadow-btn: 0 4px 12px rgba(0,0,0,0.5);
-                --shadow-hover: 0 0 15px rgba(238, 90, 138, 0.6); --shadow-closed: -4px 0 12px rgba(0,0,0,0.4);
-            }
+    styleEl.textContent = `
+      :root {
+        --yuri-zoom-level: ${currentZoom}%;
+        --yuri-margin-left: calc(50% - (${currentZoom} * 0.5%));
+        --panel-bg: #ffffff;
+        --text-color: #1f2937;
+        --btn-bg: #ffffff;
+        --icon-color: #EE5A8A;
+        --shadow-panel: 0 10px 25px rgba(0, 0, 0, 0.15);
+        --shadow-btn: 0 4px 12px rgba(0, 0, 0, 0.15);
+        --shadow-hover: 0 0 15px rgba(238, 90, 138, 0.4);
+        --shadow-closed: -4px 0 12px rgba(0, 0, 0, 0.1);
+      }
 
-            .yuri-optimized-reader {
-                display: block !important;
-                max-width: none !important;
-                position: relative !important;
-                width: var(--yuri-zoom-level) !important;
-                margin-left: var(--yuri-margin-left) !important;
-                transform: translateZ(0) !important;
-                left: auto !important;
-                margin-top: 0 !important;
-                margin-right: 0 !important;
-                margin-bottom: 0.5rem !important;
-            }
+      html.dark {
+        --panel-bg: #18181b;
+        --text-color: #ffffff;
+        --btn-bg: #18181b;
+        --icon-color: #F38FAC;
+        --shadow-panel: 0 10px 25px rgba(0, 0, 0, 0.8);
+        --shadow-btn: 0 4px 12px rgba(0, 0, 0, 0.5);
+        --shadow-hover: 0 0 15px rgba(238, 90, 138, 0.6);
+        --shadow-closed: -4px 0 12px rgba(0, 0, 0, 0.4);
+      }
 
-            ${CONFIG.READER_SELECTOR}, ${CONFIG.READER_SELECTOR} canvas {
-                width: 100% !important; max-width: 100% !important; height: auto !important;
-            }
+      .yuri-optimized-reader {
+        display: block !important;
+        max-width: none !important;
+        position: relative !important;
+        width: var(--yuri-zoom-level) !important;
+        margin-left: var(--yuri-margin-left) !important;
+        left: auto !important;
+        margin-top: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 0.5rem !important;
+      }
 
-            /* UI Wrapper */
-            #${CONFIG.WRAPPER_ID} {
-                position: fixed; top: 50%; right: 20px; transform: translateY(-50%);
-                display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 999999;
-            }
-            .yuri-btn-toggle {
-                background: var(--btn-bg); border: 2px solid #EE5A8A; border-radius: 50%;
-                width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
-                cursor: pointer; box-shadow: var(--shadow-btn);
-                transition: opacity 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-            .yuri-btn-toggle:not(.closed):hover { box-shadow: var(--shadow-hover); }
-            .yuri-btn-toggle:focus-visible { outline: 2px solid var(--icon-color); outline-offset: 2px; }
-            .yuri-btn-toggle.closed { transform: translateX(20px); opacity: 0.25; box-shadow: none; }
-            .yuri-btn-toggle.closed:hover { opacity: 1; box-shadow: var(--shadow-closed); }
-            .yuri-panel {
-                background: linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box, linear-gradient(135deg, #F38FAC, #EE5A8A) border-box;
-                border: 2px solid transparent; border-radius: 12px; color: var(--text-color);
-                padding: 15px 10px; display: flex; flex-direction: column; align-items: center; gap: 12px;
-                box-shadow: var(--shadow-panel); font-family: monospace; font-size: 14px;
-                backdrop-filter: blur(5px); transform-origin: right center;
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-                pointer-events: auto; user-select: none;
-            }
-            .yuri-panel.collapsed { transform: translateX(150%) scale(0.8); opacity: 0; pointer-events: none; }
-            .yuri-btn-toggle svg { stroke: var(--icon-color); transition: transform 0.3s ease, stroke 0.3s ease; }
-            .yuri-btn-toggle.closed svg { transform: rotate(180deg); }
-        `;
+      ${CONFIG.READER_SELECTOR}, ${CONFIG.READER_SELECTOR} canvas {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+      }
+
+      #${CONFIG.WRAPPER_ID} {
+        position: fixed;
+        top: 50%;
+        right: 20px;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        z-index: 999999;
+      }
+
+      @media (max-width: ${CONFIG.MOBILE_BREAKPOINT_PX}px) {
+        #${CONFIG.WRAPPER_ID} {
+          display: none !important;
+        }
+      }
+
+      .yuri-btn-toggle {
+        background: var(--btn-bg);
+        border: 2px solid #EE5A8A;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: var(--shadow-btn);
+        transition: opacity 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .yuri-btn-toggle:not(.closed):hover {
+        box-shadow: var(--shadow-hover);
+      }
+
+      .yuri-btn-toggle:focus-visible {
+        outline: 2px solid var(--icon-color);
+        outline-offset: 2px;
+      }
+
+      .yuri-btn-toggle.closed {
+        transform: translateX(20px);
+        opacity: 0.25;
+        box-shadow: none;
+      }
+
+      .yuri-btn-toggle.closed:hover {
+        opacity: 1;
+        box-shadow: var(--shadow-closed);
+      }
+
+      .yuri-panel {
+        background: linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box, linear-gradient(135deg, #F38FAC, #EE5A8A) border-box;
+        border: 2px solid transparent;
+        border-radius: 12px;
+        color: var(--text-color);
+        padding: 15px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        box-shadow: var(--shadow-panel);
+        font-family: monospace;
+        font-size: 14px;
+        backdrop-filter: blur(5px);
+        transform-origin: right center;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        pointer-events: auto;
+        user-select: none;
+      }
+
+      .yuri-panel.collapsed {
+        transform: translateX(150%) scale(0.8);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .yuri-btn-toggle svg {
+        stroke: var(--icon-color);
+        transition: transform 0.3s ease, stroke 0.3s ease;
+      }
+
+      .yuri-btn-toggle.closed svg {
+        transform: rotate(180deg);
+      }
+
+      #zoom-slider {
+        writing-mode: vertical-lr;
+        direction: rtl;
+        width: 8px;
+        height: 140px;
+        cursor: ns-resize;
+        accent-color: #EE5A8A;
+      }
+
+      #zoom-value {
+        font-family: sans-serif;
+        font-weight: bold;
+        padding-top: 2px;
+        display: inline-block;
+        width: 40px;
+        text-align: center;
+      }
+    `;
     document.head.appendChild(styleEl);
   };
 
-  const toggleUIState = (panel, btn) => {
+  const toggleUIState = (panelEl, buttonEl) => {
     isExpanded = !isExpanded;
-    localStorage.setItem(CONFIG.UI_STATE_KEY, isExpanded.toString());
-    panel.classList.toggle("collapsed", !isExpanded);
-    btn.classList.toggle("closed", !isExpanded);
-    btn.setAttribute("aria-expanded", isExpanded.toString());
+    localStorage.setItem(CONFIG.UI_STATE_KEY, String(isExpanded));
+    panelEl.classList.toggle("collapsed", !isExpanded);
+    buttonEl.classList.toggle("closed", !isExpanded);
+    buttonEl.setAttribute("aria-expanded", String(isExpanded));
   };
 
-  const applyZoomToContainer = (val) => {
-    document.documentElement.style.setProperty("--yuri-zoom-level", `${val}%`);
+  const applyZoomToContainer = (zoomValue) => {
+    document.documentElement.style.setProperty("--yuri-zoom-level", `${zoomValue}%`);
     document.documentElement.style.setProperty(
       "--yuri-margin-left",
-      `calc(50% - (${val} * 0.5%))`,
+      `calc(50% - (${zoomValue} * 0.5%))`
     );
 
     if (!readerContainerNode || !readerContainerNode.isConnected) {
-      const reader = document.querySelector(CONFIG.READER_SELECTOR);
-      if (reader)
+      const firstReaderPage = document.querySelector(CONFIG.READER_SELECTOR);
+      if (firstReaderPage) {
         readerContainerNode =
-          reader.closest("div.relative.shadow-xl") || reader.parentElement;
+          firstReaderPage.closest(CONFIG.READER_PARENT_SELECTOR) ||
+          firstReaderPage.parentElement;
+      }
     }
 
     if (
@@ -134,81 +233,86 @@
   };
 
   const mountUI = () => {
-    if (window.innerWidth <= 768 || document.getElementById(CONFIG.WRAPPER_ID))
-      return;
+    if (document.getElementById(CONFIG.WRAPPER_ID)) return;
 
-    const wrapper = document.createElement("div");
-    wrapper.id = CONFIG.WRAPPER_ID;
-    wrapper.innerHTML = `
-            <div class="yuri-btn-toggle ${isExpanded ? "" : "closed"}" id="yuri-toggle-btn" title="Toggle Zoom Panel" aria-label="Toggle Zoom Panel" aria-expanded="${isExpanded}" tabindex="0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline>
-                </svg>
-            </div>
-            <div class="yuri-panel ${isExpanded ? "" : "collapsed"}" id="yuri-zoom-panel">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#yuri-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <defs>
-                        <linearGradient id="yuri-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#F38FAC" /><stop offset="100%" stop-color="#EE5A8A" />
-                        </linearGradient>
-                    </defs>
-                    <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input type="range" orient="vertical" id="zoom-slider" aria-label="Zoom level" min="${CONFIG.ZOOM.MIN}" max="${CONFIG.ZOOM.MAX}" value="${currentZoom}" step="5"
-                       style="-webkit-appearance: slider-vertical; width: 8px; height: 140px; cursor: ns-resize; accent-color: #EE5A8A;">
-                <span id="zoom-value" style="font-family: 'r0c0i Linotte', sans-serif; font-weight: bold; padding-top: 2px; display: inline-block; width: 40px; text-align: center;">${currentZoom}%</span>
-            </div>
-        `;
-    document.body.appendChild(wrapper);
+    const wrapperEl = document.createElement("div");
+    wrapperEl.id = CONFIG.WRAPPER_ID;
+    wrapperEl.innerHTML = `
+      <div class="yuri-btn-toggle ${isExpanded ? "" : "closed"}" id="yuri-toggle-btn" title="Toggle Zoom Panel" aria-label="Toggle Zoom Panel" aria-expanded="${isExpanded}" tabindex="0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="13 17 18 12 13 7"></polyline>
+          <polyline points="6 17 11 12 6 7"></polyline>
+        </svg>
+      </div>
+      <div class="yuri-panel ${isExpanded ? "" : "collapsed"}" id="yuri-zoom-panel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#yuri-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <defs>
+            <linearGradient id="yuri-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#F38FAC" />
+              <stop offset="100%" stop-color="#EE5A8A" />
+            </linearGradient>
+          </defs>
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="range" id="zoom-slider" aria-label="Zoom level" min="${CONFIG.ZOOM.MIN}" max="${CONFIG.ZOOM.MAX}" value="${currentZoom}" step="${CONFIG.ZOOM.STEP}">
+        <span id="zoom-value">${currentZoom}%</span>
+      </div>
+    `;
+    document.body.appendChild(wrapperEl);
 
-    const slider = document.getElementById("zoom-slider");
-    const valueDisplay = document.getElementById("zoom-value");
-    const toggleBtn = document.getElementById("yuri-toggle-btn");
-    const panel = document.getElementById("yuri-zoom-panel");
+    const sliderEl = document.getElementById("zoom-slider");
+    const valueDisplayEl = document.getElementById("zoom-value");
+    const toggleBtnEl = document.getElementById("yuri-toggle-btn");
+    const panelEl = document.getElementById("yuri-zoom-panel");
 
-    let rAF_ID = null;
+    let animationFrameId = null;
     applyZoomToContainer(currentZoom);
 
-    slider.addEventListener("input", (e) => {
-      const val = e.target.value;
-      valueDisplay.textContent = `${val}%`;
+    sliderEl.addEventListener("input", (event) => {
+      const targetZoom = event.target.value;
+      valueDisplayEl.textContent = `${targetZoom}%`;
 
-      if (rAF_ID) cancelAnimationFrame(rAF_ID);
-      rAF_ID = requestAnimationFrame(() => {
-        currentZoom = val;
-        applyZoomToContainer(val);
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      animationFrameId = requestAnimationFrame(() => {
+        currentZoom = targetZoom;
+        applyZoomToContainer(targetZoom);
+        animationFrameId = null;
       });
     });
 
-    slider.addEventListener("change", (e) => {
-      localStorage.setItem(CONFIG.STORAGE_KEY, e.target.value);
+    sliderEl.addEventListener("change", (event) => {
+      localStorage.setItem(CONFIG.STORAGE_KEY, event.target.value);
     });
 
-    toggleBtn.addEventListener("click", () => toggleUIState(panel, toggleBtn));
-    toggleBtn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        toggleUIState(panel, toggleBtn);
+    toggleBtnEl.addEventListener("click", () => toggleUIState(panelEl, toggleBtnEl));
+    toggleBtnEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleUIState(panelEl, toggleBtnEl);
       }
     });
+
     isUIInjected = true;
   };
 
   const unmountUI = () => {
-    const wrapper = document.getElementById(CONFIG.WRAPPER_ID);
-    if (wrapper) wrapper.remove();
+    const wrapperEl = document.getElementById(CONFIG.WRAPPER_ID);
+    if (wrapperEl) wrapperEl.remove();
     isUIInjected = false;
   };
 
   const initSPAObserver = () => {
-    let moTimer = null;
+    let debounceTimerId = null;
 
     const observer = new MutationObserver(() => {
-      if (moTimer) return;
+      if (debounceTimerId !== null) return;
 
-      moTimer = setTimeout(() => {
-        const hasReader =
-          document.querySelector(CONFIG.READER_SELECTOR) !== null;
+      debounceTimerId = setTimeout(() => {
+        const hasReader = document.querySelector(CONFIG.READER_SELECTOR) !== null;
 
         if (hasReader && !isUIInjected) {
           injectBaseCSS();
@@ -220,8 +324,8 @@
           applyZoomToContainer(currentZoom);
         }
 
-        moTimer = null;
-      }, 250);
+        debounceTimerId = null;
+      }, CONFIG.OBSERVER_DEBOUNCE_MS);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
