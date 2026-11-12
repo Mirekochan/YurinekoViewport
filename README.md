@@ -2,7 +2,7 @@
 
 [English Below]
 
-Zoom trang web đọc truyện trên Yurineko cho máy tính
+Zoom in/out trang web đọc truyện trên Yurineko cho máy tính
 
 ## Hướng dẫn Cài đặt
 
@@ -10,7 +10,7 @@ Zoom trang web đọc truyện trên Yurineko cho máy tính
 
 Trình duyệt dùng nhân Gecko không bị siết policy Manifest V3. Cài xong là có thể chạy được
 
-- **Bước 1:** Cài đặt tiện ích Tampermonkey.
+- **Bước 1:** Cài đặt tiện ích Tampermonkey hoặc Violentmonkey (Khuyến nghị (Khuyến nghị Violentmonkey)).
 - **Bước 2:** Cài đặt script tại đây: [Yurineko PC Viewport](https://greasyfork.org/en/scripts/584254-yurineko-pc-viewport)
 - **Bước 3:** Vào trang đọc truyện, panel điều khiển nằm bên mép phải. Kéo thanh trượt để zoom.
 
@@ -45,7 +45,7 @@ Firefox's Gecko engine isn't restricted by Google's Manifest V3 policies. Plug a
 
 Due to Manifest V3 security enforcement, you must explicitly grant permission for UserScripts to execute in the DOM.
 
-- **Step 1:** Install Tampermonkey from your Web Store.
+- **Step 1:** Install Tampermonkey or Violentmonkey (rcm) from your Web Store.
 - **Step 2:** Navigate to the extensions management page (e.g., `chrome://extensions` or `edge://extensions`).
 - **Step 3 MANDATORY:** Toggle on **Developer mode** (usually located in the top-right corner).
 - _(Note: Chromium updates now require toggling "Allow User Scripts" in Tampermonkey's specific extension settings as well)._
